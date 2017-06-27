@@ -1,0 +1,60 @@
+apply plugin: "java"
+apply plugin: "maven"
+
+group = "myorg"
+version = 1.0
+
+repositories {
+    mavenCentral()
+}
+
+sourceSets.all { set ->
+    def jarTask = task("${set.name}Jar", type: Jar) {
+        baseName = baseName + "-$set.name"
+        from set.output
+    }
+
+    artifacts {
+        archives jarTask
+    }
+}
+
+sourceSets {
+    api
+    impl
+}
+
+dependencies {	
+	compile(group: 'org.springframework.boot', name: 'spring-boot-starter', version:'1.3.6.RELEASE')
+	 compile("org.springframework.boot:spring-boot-starter-web")
+	//compile group: 'mysql', name: 'mysql-connector-java', version:'5.1.6'
+	compile group: 'org.springframework', name: 'spring-jdbc', version:'4.2.7.RELEASE'
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+jar {
+    from sourceSets.api.output
+    from sourceSets.impl.output
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: uri("${buildDir}/repo"))
+
+            addFilter("main") { artifact, file -> artifact.name == project.name }
+            ["api", "impl"].each { type ->
+                addFilter(type) { artifact, file -> artifact.name.endsWith("-$type") }
+                
+                // We now have to map our configurations to the correct maven scope for each pom
+                ["compile", "runtime"].each { scope ->
+                    configuration = configurations[type + scope.capitalize()]
+                    ["main", type].each { pomName ->
+                        pom(pomName).scopeMappings.addMapping 1, configuration, scope
+                    }
+                }
+            }
+
+        }
+    }
+}
